@@ -1,0 +1,11 @@
+earthengine-api
+geopandas
+pandas
+shapely
+rasterio
+matplotlib
+ipykernel
+folium
+geemap
+setuptools
+scikit-learn
