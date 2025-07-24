@@ -45,20 +45,31 @@
 # PROJECT setup
 
 ```bash
-wb_from_sar/
-├─ src/
-│  ├─ assets/
-│  │  └─ img/
-│  ├─ data/
-│  │  ├─ local/
-│  │  └─ outputs/
-│  │     ├─ raster/
-│  │     └─ shapefile/
-│  ├─ doc/
-│  │  └─ remotesensing-17-00542.pdf
-│  ├─ notebook/
-│  │      └─ wb_sar.ipynb
-│  └─ scripts/ # This folder contains modular Python functions used across the project
+SAR_wb/
+├─ assets/
+│  └─ img/
+│     └─ phenological_stages_and_leaf.png
+├─ data/
+│  ├─ local/
+│  │  ├─ aoi.cpg
+│  │  ├─ aoi.dbf
+│  │  ├─ aoi.prj
+│  │  ├─ aoi.qmd
+│  │  ├─ aoi.shp
+│  │  └─ aoi.shx
+│  └─ outputs/
+│     ├─ raster/
+│     └─ shapefile/
+├─ doc/
+│  └─ remotesensing-17-00542.pdf
+├─ notebook/
+│  ├─ main.ipynb
+│  └─ map_aoi.html
+├─ scripts/ # This folder contains modular Python functions used across the project
+│  ├─ __pycache__/
+│  │  └─ aoi_loader.cpython-312.pyc
+│  ├─ __init__.py
+│  └─ aoi_loader.py
 ├─ venv/
 ├─ .gitignore
 ├─ README.md
@@ -264,4 +275,3 @@ Date       | LAI | SM (%) | ETc (mm) | Precip. | Deficit (mm)
 ```
 
 ---
-
