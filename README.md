@@ -275,3 +275,122 @@ Date       | LAI | SM (%) | ETc (mm) | Precip. | Deficit (mm)
 ```
 
 ---
+
+# 4. Metodi
+
+## 4.1 Download SAR tir from Sentinel-1 VV collection
+
+To retrieve reliable SAR backscatter data for soil moisture estimation, this workflow utilizes the VV polarization from the `Sentinel-1 Ground Range Detected (GRD)` collection in `Interferometric Wide (IW)` mode.
+
+The download and export process is automated and iterated `for` each month, resulting in one raster file per month, plus an additional seasonal average image (mean of all valid monthly composites). All exports are clipped to the predefined Area of Interest (AOI) and saved to Google Drive.
+
+```python
+for month in months:
+    start = ee.Date(f'{year}-{month:02d}-01')
+    end = start.advance(1, 'month')
+    
+    s1_month = ee.ImageCollection('COPERNICUS/S1_GRD') \
+        .filterBounds(aoi) \
+        .filterDate(start, end) \
+        .filter(ee.Filter.eq('instrumentMode', 'IW')) \
+        .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV')) \
+        .select('VV')
+```
+For each month in the growing season (April to September), it is generated a monthly composite using the pixel-wise median of all available scenes.
+The `median()` is chosen instead of the mean because it is more robust against speckle noise, acquisition anomalies, and temporal outliers, which are common in radar data. This approach ensures cleaner and more stable backscatter images suitable for time-series analysis.
+
+```python
+    vv_image = s1_month.median().clip(aoi)
+    monthly_vv_images.append(vv_image)
+    valid_months.append(month)
+```
+
+### 4.1.2 Explanation step by step:
+
+```python
+vv_image = s1_month.median().clip(aoi)
+```
+
+* `s1_month.median()` → computes the **pixel-wise median** of all Sentinel-1 VV images for that month. This is useful to **eliminate noise**, speckle, or acquisition artifacts common in SAR data.
+
+* `.clip(aoi)` → restricts the image to your **Area of Interest (AOI)**, reducing file size and processing time.
+
+---
+
+```python
+monthly_vv_images.append(vv_image)
+```
+
+Adds the monthly composite to a list (`monthly_vv_images`) so that you can:
+
+* Export all images together
+* Later compute an **overall seasonal mean**
+
+---
+
+```python
+valid_months.append(month)
+```
+
+Stores the **month number** (e.g., `4` for April) **only if the month has valid images**, which is useful for:
+
+* Logs
+* Legends
+* Filtering in dashboards or reports
+
+---
+
+This structure allows:
+
+* Avoid reprocessing the same composites multiple times
+* Build a **true seasonal average** using only valid months
+* Keep track of what was actually processed
+
+---
+
+### 4.1.3 Why use `.median()` instead of `.mean()`?
+
+```python
+vv_image = s1_month.median().clip(aoi)
+```
+
+The **median** is more robust than the **mean** when dealing with:
+* **Outliers** (e.g., very high or low VV values due to acquisition noise)
+* **SAR speckle effects**
+* **Temporal artifacts** (rain, incidence angle variation)
+
+**Median vs. Mean (assuming 3+ SAR images/month)**
+
+| Composite Type | Pros                                               | Cons                                    |
+| -------------- | -------------------------------------------------- | --------------------------------------- |
+| `median()`     | Robust to outliers, ideal for radar backscatter    | Less sensitive to small variations      |
+| `mean()`       | True average value, good for consistent conditions | Sensitive to noise, outliers distort it |
+
+**Practical Example**
+
+Imagine 5 SAR images for May, but one has a temporary acquisition anomaly (e.g., rain):
+
+| Image | VV (dB) |
+| ----- | ------- |
+| 1     | -12     |
+| 2     | -11.5   |
+| 3     | -30 ❗   |
+| 4     | -11.7   |
+| 5     | -12.2   |
+
+* `mean()` = heavily influenced by -30 → **biased value**
+* `median()` = discards the anomaly → **more reliable composite**
+
+---
+
+## When should you prefer `mean()`?
+
+You might choose `.mean()` if:
+
+* You have **many SAR scenes** per month (e.g., >10), and
+* The data are **stable and clean**, with few outliers
+* You're doing **dense time-series analysis** (e.g., daily, 3-day composites)
+* You're using **optical indices** (like NDVI), where mean is often used
+
+---
+
