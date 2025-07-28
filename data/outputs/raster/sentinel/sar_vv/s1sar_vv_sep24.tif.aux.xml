@@ -1,0 +1,13 @@
+<PAMDataset>
+  <PAMRasterBand band="1">
+    <Description>VV</Description>
+    <Metadata>
+      <MDI key="STATISTICS_APPROXIMATE">YES</MDI>
+      <MDI key="STATISTICS_MINIMUM">-42.480500725805</MDI>
+      <MDI key="STATISTICS_MAXIMUM">10.106810718838</MDI>
+      <MDI key="STATISTICS_MEAN">-14.031684375914</MDI>
+      <MDI key="STATISTICS_STDDEV">6.3322402558635</MDI>
+      <MDI key="STATISTICS_VALID_PERCENT">89.94</MDI>
+    </Metadata>
+  </PAMRasterBand>
+</PAMDataset>

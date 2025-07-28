@@ -276,7 +276,7 @@ Date       | LAI | SM (%) | ETc (mm) | Precip. | Deficit (mm)
 
 ---
 
-# 4. Metodi
+# 4. Methods
 
 ## 4.1 Download SAR tir from Sentinel-1 VV collection
 
@@ -391,6 +391,45 @@ You might choose `.mean()` if:
 * The data are **stable and clean**, with few outliers
 * You're doing **dense time-series analysis** (e.g., daily, 3-day composites)
 * You're using **optical indices** (like NDVI), where mean is often used
+
+---
+
+Assolutamente! Ecco una versione aggiornata del blocco per il `README.md`, con incluso il link ufficiale alla documentazione ISRIC:
+
+---
+
+## 4.2 Soil Texture Data (Sand, Silt, Clay) — Download from ISRIC SoilGrids
+
+To calibrate SAR-derived soil moisture with field conditions, we use **soil texture maps** (sand, silt, clay) from the official [ISRIC SoilGrids](https://soilgrids.org/) platform.
+
+### 4.2.1 How to download:
+
+1. Visit **[https://soilgrids.org](https://soilgrids.org)**
+2. Navigate or zoom to your **Area of Interest (AOI)**.
+3. In the right-side panel:
+
+   * Select **Soil Properties**: choose `Sand`, `Silt`, and `Clay`
+   * Select **Depths**: typically `0–5 cm` for surface moisture studies
+   * Choose **Statistics**: use `Mean` values
+4. Click the **Download** button to receive a ZIP file containing GeoTIFF rasters.
+5. Extract the files into your project folder:
+
+in thi case:
+```bash
+   /data/outputs/raster/isric/raster/clay_0-5cm_mean.tif
+
+```
+
+Typical output files:
+
+* `sand_0-5cm_mean.tif`
+* `silt_0-5cm_mean.tif`
+* `clay_0-5cm_mean.tif`
+
+These files can be loaded in Python using `rasterio`, `rioxarray`, or `xarray` for further geospatial analysis and integration.
+
+For more details, refer to the official documentation:
+[ISRIC SoilGrids FAQ](https://www.isric.org/explore/soilgrids/faq-soilgrids)
 
 ---
 
