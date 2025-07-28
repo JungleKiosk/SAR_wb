@@ -551,38 +551,76 @@ print("— Number of points:", len(gdf))
 
 This shapefile is ready to be used for classification using soil texture systems such as USDA or FAO, interpolation, or as reference for SAR backscatter calibration.
 
-You can proceed to classify these points using packages like [`soiltexture`](https://pypi.org/project/soiltexture/) or:
+### 4.2.4 Method Used
+
+Once the raster files for **sand**, **silt**, and **clay** were stacked and converted to point geometries (centroids), we proceeded with the **soil texture classification** using the official USDA system.
+
+To assign USDA texture classes (e.g., *Loam*, *Clay Loam*, *Silty Clay*...), we used the [`soiltexture`](https://pypi.org/project/soiltexture/) Python library, which implements USDA classification logic based on sand and clay percentages.
 
 ```python
+from soiltexture import getTexture
 
-def classify_usda(sand, silt, clay):
-    if 0 <= sand <= 45 and 40 <= clay <= 100 and 0 <= silt <= 40:
-        return 'Cl'  # Clay
-    elif 45 <= sand <= 65 and 35 <= clay <= 55 and 0 <= silt <= 20:
-        return 'SaCl'  # Sandy Clay
-    elif 0 <= sand <= 20 and 40 <= clay <= 60 and 40 <= silt <= 60:
-        return 'SiCl'  # Silty Clay
-    elif 20 <= sand <= 45 and 25 <= clay <= 40 and 15 <= silt <= 55:
-        return 'ClLo'  # Clay Loam
-    elif 0 <= sand <= 20 and 25 <= clay <= 40 and 40 <= silt <= 75:
-        return 'SiClLo'  # Silty Clay Loam
-    elif 45 <= sand <= 80 and 20 <= clay <= 35 and 0 <= silt <= 25:
-        return 'SaClLo'  # Sandy Clay Loam
-    elif 25 <= sand <= 55 and 5 <= clay <= 25 and 25 <= silt <= 50:
-        return 'Lo'  # Loam
-    elif 85 <= sand <= 100 and 0 <= clay <= 10 and 0 <= silt <= 15:
-        return 'Sa'  # Sand
-    elif 70 <= sand <= 90 and 0 <= clay <= 15 and 0 <= silt <= 30:
-        return 'LoSa'  # Loamy Sand
-    elif 45 <= sand <= 85 and 0 <= clay <= 20 and 0 <= silt <= 50:
-        return 'SaLo'  # Sandy Loam
-    elif 0 <= sand <= 50 and 0 <= clay <= 25 and 50 <= silt <= 85:
-        return 'SiLo'  # Silty Loam
-    elif 0 <= sand <= 20 and 0 <= clay <= 15 and 80 <= silt <= 100:
-        return 'Si'  # Silt
-    else:
-        return 'Unk'  # Unknown or outside defined ranges
-
-
+gdf["usda_class"] = gdf.apply(
+    lambda row: getTexture(row['sand'], row['clay']) 
+    if not np.isnan(row['sand']) and not np.isnan(row['clay']) else 'Unk',
+    axis=1
+)
 ```
+
+This approach guarantees:
+
+* ✅ **Consistency** with USDA's official texture triangle
+* ✅ **Less prone to errors** compared to hand-coded logical rules
+* ✅ **Transparent and reproducible**
+
+Certo! Ecco come potresti completare la documentazione nel README:
+
+---
+
+### 4.2.5 Comparison with Custom USDA Classification
+
+For validation purposes, we also implemented a **custom classification function** `classify_usda(sand, silt, clay)` (take a look in: `scripts/classify_usda.py`) that reproduces the USDA texture logic using `if...elif` conditions based on sand, silt, and clay ranges.
+
+This function was applied as:
+
+```python
+gdf["usda_custom"] = gdf.apply(
+    lambda row: classify_usda(row['sand'], row['silt'], row['clay']),
+    axis=1
+)
+```
+
+> ⚠️ **Important Note**
+> Although this column (`usda_custom`) is available in the shapefile, the **official USDA texture class** should be taken from the `tex_lib` column, which is generated using the trusted `soiltexture` library.
+
+This approach allows side-by-side comparison for debugging or educational purposes, while keeping the analysis consistent and reliable using `soiltexture`.
+
+### 4.2.6 Why not a custom soiltexture function?
+
+While a custom classification function based on ranges of sand, silt, and clay can work in simple cases, it:
+
+* ❌ Requires careful debugging to avoid overlapping or missing ranges
+* ❌ May not exactly match the USDA classification triangle
+* ❌ Is harder to maintain and test over time
+
+For those reasons, we preferred the `soiltexture` library, which is well-tested and used in the scientific community.
+
+### 4.2.7 Output
+
+The final output is a **shapefile** of centroid points enriched with:
+
+* Sand, silt, clay (%)
+* USDA class from `soiltexture`
+
+#### Example: Texture Class Comparison
+
+| Sand (%) | Silt (%) | Clay (%) | tex_lib           | usda   |
+|----------|----------|----------|--------------------|--------|
+| 13.5     | 47.2     | 39.3     | silty clay loam    | SiClLo |
+| 13.6     | 47.0     | 39.4     | silty clay loam    | SiClLo |
+| 13.5     | 49.0     | 37.5     | silty clay loam    | SiClLo |
+| 12.2     | 50.5     | 37.3     | silty clay loam    | SiClLo |
+| 12.3     | 49.6     | 38.1     | silty clay loam    | SiClLo |
+
+As shown, both classification methods give consistent results. Still, for official USDA texture mapping, rely on the `tex_lib` field (computed using the [soiltexture](https://pypi.org/project/soiltexture/) library).
 
