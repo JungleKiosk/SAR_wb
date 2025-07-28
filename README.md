@@ -59,7 +59,13 @@ SAR_wb/
 │  │  └─ aoi.shx
 │  └─ outputs/
 │     ├─ raster/
+│     │   ├─ isric/
+│     │   │    ├─ raster/
+│     │   │    ├─ stack/
+│     │   ├─ sentinel/
+│     │
 │     └─ shapefile/
+│           ├─ isric/
 ├─ doc/
 │  └─ remotesensing-17-00542.pdf
 ├─ notebook/
@@ -431,5 +437,152 @@ These files can be loaded in Python using `rasterio`, `rioxarray`, or `xarray` f
 For more details, refer to the official documentation:
 [ISRIC SoilGrids FAQ](https://www.isric.org/explore/soilgrids/faq-soilgrids)
 
----
+
+### 4.2.2 Stack the Soil Texture Rasters (Sand, Silt, Clay)
+
+After downloading the individual GeoTIFF files for sand, silt, and clay, we stack them into a **multiband raster** to simplify spatial processing and sampling.
+
+This creates a single raster where:
+
+* Band 1 = Sand (%)
+* Band 2 = Silt (%)
+* Band 3 = Clay (%)
+
+```python
+import rasterio
+import os
+
+# Input paths
+sand_path = "../data/outputs/raster/isric/raster/sand_0_5_div10.tif"
+silt_path = "../data/outputs/raster/isric/raster/silt_0_5_div10.tif"
+clay_path = "../data/outputs/raster/isric/raster/clay_0_5_div10.tif"
+
+# Output stacked raster
+stacked_path = "../data/outputs/raster/isric/stack/soil_texture_stack.tif"
+os.makedirs(os.path.dirname(stacked_path), exist_ok=True)
+
+# Read and stack bands
+with rasterio.open(sand_path) as src_sand, \
+     rasterio.open(silt_path) as src_silt, \
+     rasterio.open(clay_path) as src_clay:
+
+    sand = src_sand.read(1)
+    silt = src_silt.read(1)
+    clay = src_clay.read(1)
+
+    meta = src_sand.meta.copy()
+    meta.update({
+        "count": 3,
+        "dtype": sand.dtype
+    })
+
+# Write multiband GeoTIFF
+with rasterio.open(stacked_path, 'w', **meta) as dst:
+    dst.write(sand, 1)
+    dst.write(silt, 2)
+    dst.write(clay, 3)
+
+print(f"✅ Saved raster stack: {stacked_path}")
+```
+
+### 4.2.3 Generate Soil Texture Centroids as Shapefile
+
+To prepare for point-based analysis (e.g., interpolation, sampling, classification), we extract **centroids of each valid raster pixel** and save them as point geometries in a shapefile.
+
+Each point contains:
+
+* Sand (%)
+* Silt (%)
+* Clay (%)
+* Geometry (centroid of the raster cell)
+
+```python
+import rasterio
+import numpy as np
+import geopandas as gpd
+from shapely.geometry import Point
+from rasterio.transform import xy
+import os
+
+# Load sand, silt, clay rasters
+paths = {
+    'sand': "../data/outputs/raster/isric/raster/sand_0_5_div10.tif",
+    'silt': "../data/outputs/raster/isric/raster/silt_0_5_div10.tif",
+    'clay': "../data/outputs/raster/isric/raster/clay_0_5_div10.tif"
+}
+
+arrays = {}
+transform = None
+crs = None
+
+# Read rasters and store metadata
+for name, path in paths.items():
+    with rasterio.open(path) as src:
+        arrays[name] = src.read(1)
+        transform = transform or src.transform
+        crs = crs or src.crs
+
+# Filter valid pixels (non-NaN in all three layers)
+mask = (~np.isnan(arrays['sand'])) & (~np.isnan(arrays['silt'])) & (~np.isnan(arrays['clay']))
+rows, cols = np.where(mask)
+
+# Create points
+geoms = []
+data = {'sand': [], 'silt': [], 'clay': []}
+
+for r, c in zip(rows, cols):
+    x, y = xy(transform, r, c, offset='center')
+    geoms.append(Point(x, y))
+    data['sand'].append(arrays['sand'][r, c])
+    data['silt'].append(arrays['silt'][r, c])
+    data['clay'].append(arrays['clay'][r, c])
+
+# Create GeoDataFrame
+gdf = gpd.GeoDataFrame(data, geometry=geoms, crs=crs)
+
+# Export to shapefile
+output_shp = "../data/outputs/shapefile/soiltexture_centroids.shp"
+os.makedirs(os.path.dirname(output_shp), exist_ok=True)
+gdf.to_file(output_shp)
+
+print("✅ Shapefile created:", output_shp)
+print("— Number of points:", len(gdf))
+```
+
+This shapefile is ready to be used for classification using soil texture systems such as USDA or FAO, interpolation, or as reference for SAR backscatter calibration.
+
+You can proceed to classify these points using packages like [`soiltexture`](https://pypi.org/project/soiltexture/) or:
+
+```python
+
+def classify_usda(sand, silt, clay):
+    if 0 <= sand <= 45 and 40 <= clay <= 100 and 0 <= silt <= 40:
+        return 'Cl'  # Clay
+    elif 45 <= sand <= 65 and 35 <= clay <= 55 and 0 <= silt <= 20:
+        return 'SaCl'  # Sandy Clay
+    elif 0 <= sand <= 20 and 40 <= clay <= 60 and 40 <= silt <= 60:
+        return 'SiCl'  # Silty Clay
+    elif 20 <= sand <= 45 and 25 <= clay <= 40 and 15 <= silt <= 55:
+        return 'ClLo'  # Clay Loam
+    elif 0 <= sand <= 20 and 25 <= clay <= 40 and 40 <= silt <= 75:
+        return 'SiClLo'  # Silty Clay Loam
+    elif 45 <= sand <= 80 and 20 <= clay <= 35 and 0 <= silt <= 25:
+        return 'SaClLo'  # Sandy Clay Loam
+    elif 25 <= sand <= 55 and 5 <= clay <= 25 and 25 <= silt <= 50:
+        return 'Lo'  # Loam
+    elif 85 <= sand <= 100 and 0 <= clay <= 10 and 0 <= silt <= 15:
+        return 'Sa'  # Sand
+    elif 70 <= sand <= 90 and 0 <= clay <= 15 and 0 <= silt <= 30:
+        return 'LoSa'  # Loamy Sand
+    elif 45 <= sand <= 85 and 0 <= clay <= 20 and 0 <= silt <= 50:
+        return 'SaLo'  # Sandy Loam
+    elif 0 <= sand <= 50 and 0 <= clay <= 25 and 50 <= silt <= 85:
+        return 'SiLo'  # Silty Loam
+    elif 0 <= sand <= 20 and 0 <= clay <= 15 and 80 <= silt <= 100:
+        return 'Si'  # Silt
+    else:
+        return 'Unk'  # Unknown or outside defined ranges
+
+
+```
 
